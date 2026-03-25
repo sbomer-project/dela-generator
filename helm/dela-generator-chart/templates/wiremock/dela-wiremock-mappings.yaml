@@ -1,0 +1,54 @@
+{{- if .Values.global.includeMockServices }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dela-wiremock-mappings
+  labels:
+    {{- include "dela-generator-chart.labels" . | nindent 4 }}
+data:
+  # 1. Mock the Operation Endpoint
+  operation-123.json: |-
+    {
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/pnc-rest/v2/operations/deliverable-analyzer/mock-op-123"
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": {
+          "id": "mock-op-123",
+          "productMilestone": { "id": "milestone-1", "version": "1.0.0.GA" }
+        }
+      }
+    }
+
+  # 2. Mock the Analyzed Artifacts Endpoint
+  artifacts-123.json: |-
+    {
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/pnc-rest/v2/operations/deliverable-analyzer/mock-op-123/analyzed-artifacts"
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": [
+          {
+            "distribution": { "distributionUrl": "https://example.com/my-deliverable.zip" },
+            "artifact": { "filename": "my-deliverable.zip", "purl": "pkg:generic/my-deliverable.zip" },
+            "archiveFilenames": ["my-deliverable.zip"]
+          },
+          {
+            "distribution": { "distributionUrl": "https://example.com/my-deliverable.zip" },
+            "artifact": {
+              "filename": "log4j-core-2.14.1.jar",
+              "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1",
+              "build": { "id": "build-123" }
+            },
+            "archiveFilenames": ["my-deliverable.zip!/WEB-INF/lib/log4j-core-2.14.1.jar"]
+          }
+        ]
+      }
+    }
+{{- end }}
