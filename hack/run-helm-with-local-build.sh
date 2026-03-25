@@ -133,6 +133,9 @@ helm upgrade --install sbomer-release "./$PLATFORM_DIR" \
     --set global.includeOtelLgtm=true \
     --set global.includeDependencyTrack=true \
     --set global.includeDependencyTrackPublisher=true \
+    --set global.includeMockServices=true \
+    --set "wiremock.extraMappingConfigMaps[0]=dela-wiremock-mappings" \
+    --set dela-generator-chart.config.pnc.apiUrl="http://sbomer-release-wiremock:8080" \
     --set dela-generator-chart.image.repository=localhost/dela-generator \
     --set dela-generator-chart.image.tag=latest \
     --set dela-generator-chart.image.pullPolicy=Never
@@ -140,6 +143,7 @@ helm upgrade --install sbomer-release "./$PLATFORM_DIR" \
 echo "--- Forcing Rolling Restart to pick up new local image ---"
 # We ignore "not found" errors in case it's the very first install
 kubectl rollout restart deployment -n $NAMESPACE -l app.kubernetes.io/name=dela-generator-chart || true
+kubectl rollout restart deployment -n $NAMESPACE -l app=wiremock || true
 
 echo "--- Deployment Complete ---"
 echo "You can check status with: kubectl get pods -n $NAMESPACE"

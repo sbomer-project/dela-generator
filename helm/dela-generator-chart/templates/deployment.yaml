@@ -49,6 +49,8 @@ spec:
               value: {{ .Values.config.kafka.schemaRegistryUrl | quote }}
             - name: MANIFEST_STORAGE_INTERNAL_URL
               value: {{ .Values.config.storage.internalUrl | quote }}
+            - name: PNC_API_URL
+              value: {{ .Values.config.pnc.apiUrl | quote }}
             - name: QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.config.otel.endpoint }}
             - name: QUARKUS_OTEL_EXPORTER_OTLP_PROTOCOL
