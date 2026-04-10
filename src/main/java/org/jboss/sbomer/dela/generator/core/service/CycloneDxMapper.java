@@ -209,33 +209,55 @@ public class CycloneDxMapper {
         if (build == null) return;
 
         List<Component> ancestorsList = new ArrayList<>();
+        List<org.cyclonedx.model.Commit> commitsList = new ArrayList<>();
 
-        // Internal SCM Ancestor
+        // 1. Internal SCM
         if (build.getScmUrl() != null && build.getScmRevision() != null) {
-            // Emulate the old SbomUtils logic: pncBuild.getScmUrl() + "#" + pncBuild.getScmTag()
             String fullUrl = build.getScmTag() != null && !build.getScmTag().isBlank()
                     ? build.getScmUrl() + "#" + build.getScmTag()
                     : build.getScmUrl();
 
+            // Add as Ancestor (Modern SBOMer format)
             addPedigreeAncestor(ancestorsList, component.getName(), fullUrl, build.getScmRevision());
+
+            // Add as Commit (Legacy SBOMer format)
+            org.cyclonedx.model.Commit commit = new org.cyclonedx.model.Commit();
+            commit.setUid(build.getScmRevision());
+            commit.setUrl(fullUrl);
+            commitsList.add(commit);
         }
 
-        // 2. External SCM Ancestor (if applicable)
+        // 2. External SCM (if applicable)
         if (build.getScmRepository() != null && build.getScmRepository().getExternalUrl() != null
                 && build.getScmBuildConfigRevision() != null
                 && build.getBuildConfigRevision() != null) {
 
             String fullUrl = build.getScmRepository().getExternalUrl() + "#" + build.getBuildConfigRevision().getScmRevision();
+
+            // Add as Ancestor
             addPedigreeAncestor(ancestorsList, component.getName(), fullUrl, build.getScmBuildConfigRevision());
+
+            // Add as Commit
+            org.cyclonedx.model.Commit commit = new org.cyclonedx.model.Commit();
+            commit.setUid(build.getScmBuildConfigRevision());
+            commit.setUrl(fullUrl);
+            commitsList.add(commit);
         }
 
-        // Attach Pedigree to Component using the CycloneDX Ancestors wrapper class
-        if (!ancestorsList.isEmpty()) {
-            Ancestors ancestors = new Ancestors();
-            ancestors.setComponents(ancestorsList);
-
+        // Attach Pedigree to Component
+        if (!ancestorsList.isEmpty() || !commitsList.isEmpty()) {
             org.cyclonedx.model.Pedigree pedigree = new org.cyclonedx.model.Pedigree();
-            pedigree.setAncestors(ancestors);
+
+            if (!ancestorsList.isEmpty()) {
+                org.cyclonedx.model.Ancestors ancestors = new org.cyclonedx.model.Ancestors();
+                ancestors.setComponents(ancestorsList);
+                pedigree.setAncestors(ancestors);
+            }
+
+            if (!commitsList.isEmpty()) {
+                pedigree.setCommits(commitsList);
+            }
+
             component.setPedigree(pedigree);
         }
     }
