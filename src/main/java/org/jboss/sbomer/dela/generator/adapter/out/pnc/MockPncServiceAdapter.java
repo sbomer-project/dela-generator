@@ -14,7 +14,9 @@ import org.jboss.pnc.dto.Artifact;
 import org.jboss.pnc.dto.Build;
 import org.jboss.pnc.dto.BuildConfigurationRevision;
 import org.jboss.pnc.dto.DeliverableAnalyzerOperation;
+import org.jboss.pnc.dto.Environment;
 import org.jboss.pnc.dto.ProductMilestoneRef;
+import org.jboss.pnc.dto.SCMRepository;
 import org.jboss.pnc.dto.TargetRepository;
 import org.jboss.pnc.dto.response.AnalyzedArtifact;
 import org.jboss.pnc.dto.response.AnalyzedDistribution;
@@ -92,17 +94,43 @@ public class MockPncServiceAdapter implements PNCService {
         LicenseInfo apache2 = LicenseInfo.builder().spdxLicenseId("Apache-2.0").name("Apache 2.0").build();
         LicenseInfo mit = LicenseInfo.builder().spdxLicenseId("MIT").name("MIT License").build();
 
-        // --- ARTIFACT 1: Red Hat Maven Build (Should get MRRC + Publisher) ---
+        // --- BUILD METADATA (Environment & VCS for Pedigree/Traceability) ---
+        Environment mockEnv = Environment.builder()
+                .systemImageRepositoryUrl("quay.io/rh-newcastle/builder-rhel-7-j8-mvn3.6.3")
+                .systemImageId("1.0.0")
+                .build();
+
+        SCMRepository mockScmRepo = SCMRepository.builder()
+                .id("repo-1")
+                .internalUrl("git+ssh://code.engineering.redhat.com/acme/acme-core.git")
+                .externalUrl("https://github.com/acme/acme-core.git")
+                .build();
+
+        Build rhMavenBuild = Build.builder()
+                .id(MOCK_MAVEN_BUILD_ID)
+                .environment(mockEnv)
+                .scmRepository(mockScmRepo)
+                .scmUrl("https://gitlab.cee.redhat.com/acme/acme-core.git")
+                .scmRevision("ec5af3461c0004d3f510b88b3abb34828206c2e4")
+                .scmTag("1.0.0.redhat-00001")
+                .scmBuildConfigRevision("dbbdb0330c0a94d90656a1aa95c1510c")
+                .buildConfigRevision(BuildConfigurationRevision.builder()
+                        .buildType(BuildType.MVN)
+                        .scmRevision("dbbdb0330c0a94d90656a1aa95c1510c")
+                        .build())
+                .build();
+
+        // --- ARTIFACT 1: Red Hat Maven Build (Includes Hashes & Rich Build Meta) ---
         Artifact rhMavenArtifact = Artifact.builder()
                 .id("art-1")
                 .identifier("com.redhat.acme:acme-core:jar:1.0.0.redhat-00001")
                 .purl("pkg:maven/com.redhat.acme/acme-core@1.0.0.redhat-00001?type=jar")
                 .filename("acme-core-1.0.0.redhat-00001.jar")
+                .md5("137a4f61625440544ab10746c07da73f")
+                .sha1("4a742528932f05fcf2341de02d3a2e5c13d8d488")
+                .sha256("1878c9a663bba7d063cf9a08f5d0968be68f70f4e4b086ef729d6f5d850b5fa6")
                 .targetRepository(mavenRepo)
-                .build(Build.builder()
-                        .id(MOCK_MAVEN_BUILD_ID)
-                        .buildConfigRevision(BuildConfigurationRevision.builder().buildType(BuildType.MVN).build())
-                        .build())
+                .build(rhMavenBuild)
                 .build();
 
         AnalyzedArtifact analyzedRhMaven = AnalyzedArtifact.builder()
@@ -119,6 +147,9 @@ public class MockPncServiceAdapter implements PNCService {
                 .identifier("com.fasterxml.jackson.core:jackson-core:jar:2.15.0")
                 .purl("pkg:maven/com.fasterxml.jackson.core/jackson-core@2.15.0?type=jar")
                 .filename("jackson-core-2.15.0.jar")
+                .md5("11c7a27fc3cb10c663bf1257abce6ea2")
+                .sha1("00a0c4edc12ac11aacb440c9514c7a9e4c43b873")
+                .sha256("2aca80114732a342884fc024d17ea23d97562b40bf8a0babf0151d76e2ac01c7")
                 .targetRepository(mavenRepo)
                 .build(); // No build attached!
 
@@ -135,7 +166,7 @@ public class MockPncServiceAdapter implements PNCService {
                 .id("art-3")
                 .identifier("some-weird-binary.bin")
                 .filename("some-weird-binary.bin")
-                // No targetRepository, no PURL!
+                // No targetRepository, no PURL, no hashes
                 .build();
 
         AnalyzedArtifact analyzedBad = AnalyzedArtifact.builder()
@@ -151,6 +182,9 @@ public class MockPncServiceAdapter implements PNCService {
                 .identifier("@redhat/acme-ui:1.0.0-2")
                 .purl("pkg:npm/%40redhat/acme-ui@1.0.0-2")
                 .filename("acme-ui-1.0.0-2.tgz")
+                .md5("7256f616cf783d1480afd3fb523c1389")
+                .sha1("6be43fcb2bab757df3c6a73b2a5046fc8c85d9ac")
+                .sha256("768de747afe2ba48b4185936158dbfb8e421e266db009ce03716f93896a950cd")
                 .targetRepository(npmRepo)
                 .build(Build.builder()
                         .id(MOCK_NPM_BUILD_ID)
@@ -172,8 +206,6 @@ public class MockPncServiceAdapter implements PNCService {
     @Override
     @WithSpan("PNC.getNPMDependencies (Mock)")
     public List<Artifact> getNPMDependencies(@SpanAttribute("pnc.buildId") String buildId) {
-        // We simulate the workaround: The MAVEN build actually pulled in a hidden NPM dependency
-        // during its frontend-plugin compilation phase.
         if (MOCK_MAVEN_BUILD_ID.equals(buildId)) {
             log.warn("🛡️ MOCK PNC: Injecting hidden NPM dependency for Maven Build {}", buildId);
 
@@ -188,6 +220,9 @@ public class MockPncServiceAdapter implements PNCService {
                     .identifier("lodash:4.17.21")
                     .purl("pkg:npm/lodash@4.17.21")
                     .filename("lodash-4.17.21.tgz")
+                    .md5("099d19965775e4b30c5aabeaaa9b8973")
+                    .sha1("49ea128d047901590977ed88506f0b1d83fd509e")
+                    .sha256("919a09fb019f2d71665900d6650d040dce1152bcd19622b83867da1b2812898a")
                     .targetRepository(sharedRepo)
                     .build();
 

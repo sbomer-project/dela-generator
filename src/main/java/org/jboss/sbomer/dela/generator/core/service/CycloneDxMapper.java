@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import org.commonjava.atlas.maven.ident.ref.SimpleArtifactRef;
 import org.commonjava.atlas.npm.ident.ref.NpmPackageRef;
+import org.cyclonedx.model.Ancestors;
 import org.cyclonedx.model.Component;
 import org.cyclonedx.model.ExternalReference;
 import org.cyclonedx.model.Hash;
@@ -18,6 +19,9 @@ import org.jboss.pnc.dto.Artifact;
 import org.jboss.pnc.dto.Build;
 import org.jboss.pnc.dto.response.AnalyzedArtifact;
 import org.jboss.pnc.restclient.util.ArtifactUtil;
+import org.jboss.sbomer.dela.generator.core.utility.VcsUrl;
+
+import com.github.packageurl.PackageURL;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,6 +62,9 @@ public class CycloneDxMapper {
 
         // Map External References (PNC Traceability)
         mapPncTraceability(component, artifact, pncApiUrl);
+
+        // Map Source Pedigree (Ancestors)
+        mapPedigree(component, artifact);
 
         // Apply Red Hat Specific Tagging
         if (isRhComponent(component)) {
@@ -194,6 +201,72 @@ public class CycloneDxMapper {
                 addExternalReference(component, ExternalReference.Type.VCS,
                         build.getScmRepository().getExternalUrl(), null);
             }
+        }
+    }
+
+    private static void mapPedigree(Component component, Artifact artifact) {
+        Build build = artifact.getBuild();
+        if (build == null) return;
+
+        List<Component> ancestorsList = new ArrayList<>();
+
+        // Internal SCM Ancestor
+        if (build.getScmUrl() != null && build.getScmRevision() != null) {
+            // Emulate the old SbomUtils logic: pncBuild.getScmUrl() + "#" + pncBuild.getScmTag()
+            String fullUrl = build.getScmTag() != null && !build.getScmTag().isBlank()
+                    ? build.getScmUrl() + "#" + build.getScmTag()
+                    : build.getScmUrl();
+
+            addPedigreeAncestor(ancestorsList, component.getName(), fullUrl, build.getScmRevision());
+        }
+
+        // 2. External SCM Ancestor (if applicable)
+        if (build.getScmRepository() != null && build.getScmRepository().getExternalUrl() != null
+                && build.getScmBuildConfigRevision() != null
+                && build.getBuildConfigRevision() != null) {
+
+            String fullUrl = build.getScmRepository().getExternalUrl() + "#" + build.getBuildConfigRevision().getScmRevision();
+            addPedigreeAncestor(ancestorsList, component.getName(), fullUrl, build.getScmBuildConfigRevision());
+        }
+
+        // Attach Pedigree to Component using the CycloneDX Ancestors wrapper class
+        if (!ancestorsList.isEmpty()) {
+            Ancestors ancestors = new Ancestors();
+            ancestors.setComponents(ancestorsList);
+
+            org.cyclonedx.model.Pedigree pedigree = new org.cyclonedx.model.Pedigree();
+            pedigree.setAncestors(ancestors);
+            component.setPedigree(pedigree);
+        }
+    }
+
+    private static void addPedigreeAncestor(List<Component> ancestorsList, String fallbackName, String fullUrl, String commitHash) {
+        if (fullUrl == null || fullUrl.isBlank()) return;
+
+        try {
+            // Use the battle-tested legacy VcsUrl class to handle JGit parsing and PackageURL extraction
+            VcsUrl vcsUrl = VcsUrl.create(fullUrl);
+            PackageURL packageURL = vcsUrl.toPackageURL(commitHash);
+
+            Component ancestor = new Component();
+            ancestor.setType(Component.Type.LIBRARY);
+            ancestor.setName(packageURL.getName());
+            ancestor.setVersion(commitHash);
+
+            String purl = packageURL.toString();
+            ancestor.setPurl(purl);
+            ancestor.setBomRef(purl);
+
+            ancestorsList.add(ancestor);
+        } catch (Exception e) {
+            log.warn("Error creating pedigree purl for URL '{}': {}", fullUrl, e.getMessage());
+
+            // Graceful fallback to ensure the ancestor is at least recorded even if parsing fails
+            Component ancestor = new Component();
+            ancestor.setType(Component.Type.LIBRARY);
+            ancestor.setName(fallbackName);
+            ancestor.setVersion(commitHash);
+            ancestorsList.add(ancestor);
         }
     }
 

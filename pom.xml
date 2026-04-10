@@ -23,6 +23,7 @@
         <version.pnc>3.2.9</version.pnc>
         <version.pnc-api>3.2.4</version.pnc-api>
         <version.cyclonedx>9.1.0-patch</version.cyclonedx>
+        <version.quarkus-jgit>3.6.0</version.quarkus-jgit>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
@@ -164,7 +165,11 @@
                 </exclusion>
             </exclusions>
         </dependency>
-
+        <dependency>
+            <groupId>io.quarkiverse.jgit</groupId>
+            <artifactId>quarkus-jgit</artifactId>
+            <version>${version.quarkus-jgit}</version>
+        </dependency>
         <dependency>
             <groupId>com.github.package-url</groupId>
             <artifactId>packageurl-java</artifactId>
