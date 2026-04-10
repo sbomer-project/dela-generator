@@ -1,5 +1,8 @@
 package org.jboss.sbomer.dela.generator.adapter.out;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -18,8 +21,6 @@ import org.jboss.sbomer.events.common.FailureSpec;
 import org.jboss.sbomer.events.error.ErrorData;
 import org.jboss.sbomer.events.error.ProcessingFailed;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 @ApplicationScoped

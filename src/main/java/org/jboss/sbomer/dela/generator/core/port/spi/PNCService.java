@@ -1,9 +1,10 @@
 package org.jboss.sbomer.dela.generator.core.port.spi;
 
+import java.util.List;
+
+import org.jboss.pnc.dto.Artifact;
 import org.jboss.pnc.dto.DeliverableAnalyzerOperation;
 import org.jboss.pnc.dto.response.AnalyzedArtifact;
-
-import java.util.List;
 
 /**
  * Outbound port (SPI) for interacting with the Project Newcastle (PNC) system.
@@ -29,5 +30,15 @@ public interface PNCService {
      * @return A list of artifacts, including their PURLs, distribution URLs, and archive paths.
      */
     List<AnalyzedArtifact> getAnalyzedArtifacts(String operationId);
+
+    /**
+     * Retrieves the build-time dependencies associated with a specific PNC Build ID.
+     * This is required by the generation process to manually inject missing NPM
+     * dependencies that are not natively captured by the deliverable analyzer.
+     *
+     * @param buildId The unique identifier of the PNC build.
+     * @return A list of Artifacts that were used as dependencies during the build.
+     */
+    List<Artifact> getNPMDependencies(String buildId);
 
 }
