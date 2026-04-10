@@ -1,5 +1,7 @@
 package org.jboss.sbomer.dela.generator.core.service;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import java.net.URI;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -11,10 +13,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 import org.cyclonedx.Version;
 import org.cyclonedx.exception.GeneratorException;
 import org.cyclonedx.generators.json.BomJsonGenerator;
@@ -22,13 +20,19 @@ import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.Component;
 import org.cyclonedx.model.Dependency;
 import org.cyclonedx.model.Metadata;
-
+import org.cyclonedx.model.Property;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.faulttolerance.Bulkhead;
+import org.jboss.pnc.dto.DeliverableAnalyzerOperation;
 import org.jboss.pnc.dto.response.AnalyzedArtifact;
 import org.jboss.sbomer.dela.generator.core.port.api.GenerationProcessor;
 import org.jboss.sbomer.dela.generator.core.port.spi.PNCService;
 import org.jboss.sbomer.dela.generator.core.port.spi.StatusUpdateService;
 import org.jboss.sbomer.dela.generator.core.port.spi.StorageService;
 import org.jboss.sbomer.events.orchestration.GenerationCreated;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @ApplicationScoped
 @Slf4j
@@ -38,8 +42,26 @@ public class DelaGenerationService implements GenerationProcessor {
     private final PNCService pncService;
     private final StorageService storageService;
     private final StatusUpdateService statusUpdateService;
+    private final NpmDependencyWorkaroundService npmWorkaroundService;
+
+    // --- Injected Configuration Properties ---
+    @ConfigProperty(name = "sbomer.generator.tool.name", defaultValue = "SBOMer NextGen")
+    String toolName;
+
+    @ConfigProperty(name = "sbomer.generator.tool.version", defaultValue = "1.0.0")
+    String toolVersion;
+
+    @ConfigProperty(name = "sbomer.generator.supplier.name", defaultValue = "Red Hat")
+    String supplierName;
+
+    @ConfigProperty(name = "sbomer.generator.supplier.urls", defaultValue = "https://www.redhat.com")
+    List<String> supplierUrls;
+
+    @ConfigProperty(name = "pnc.api.url", defaultValue = "https://pnc-url")
+    String pncApiUrl;
 
     @Override
+    @Bulkhead(value = 5) // MAXIMUM 5 concurrent generation tasks allowed
     public void processGeneration(GenerationCreated event) {
         String generationId = event.getData().getGenerationRequest().getGenerationId();
         String operationId = event.getData().getGenerationRequest().getTarget().getIdentifier();
@@ -49,24 +71,26 @@ public class DelaGenerationService implements GenerationProcessor {
         try {
             statusUpdateService.reportGenerating(generationId);
 
+            // Fetch the operation metadata for traceability and version fallback
+            DeliverableAnalyzerOperation operation = pncService.getOperation(operationId);
             List<AnalyzedArtifact> allArtifacts = pncService.getAnalyzedArtifacts(operationId);
 
-            Map<String, List<AnalyzedArtifact>> groupedByZip = allArtifacts.stream()
+            Map<String, List<AnalyzedArtifact>> groupedByDeliverable = allArtifacts.stream()
                     .filter(a -> a.getDistribution() != null && a.getDistribution().getDistributionUrl() != null)
                     .collect(Collectors.groupingBy(a -> a.getDistribution().getDistributionUrl()));
 
-            if (groupedByZip.isEmpty()) {
+            if (groupedByDeliverable.isEmpty()) {
                 throw new IllegalStateException("No valid deliverable distributions found in operation " + operationId);
             }
 
             List<String> finalSbomUrls = new ArrayList<>();
 
-            for (Map.Entry<String, List<AnalyzedArtifact>> entry : groupedByZip.entrySet()) {
-                String zipUrl = entry.getKey();
-                List<AnalyzedArtifact> artifactsInZip = entry.getValue();
+            for (Map.Entry<String, List<AnalyzedArtifact>> entry : groupedByDeliverable.entrySet()) {
+                String deliverableUrl = entry.getKey();
+                List<AnalyzedArtifact> artifactsInDeliverable = entry.getValue();
 
-                // --- THE CORE MAPPING STEP ---
-                String sbomJson = generateCycloneDxJson(zipUrl, artifactsInZip);
+                // Pass the operation object down into the generator
+                String sbomJson = generateCycloneDxJson(deliverableUrl, artifactsInDeliverable, operation);
 
                 String uploadedUrl = storageService.uploadSbom(generationId, sbomJson);
                 finalSbomUrls.add(uploadedUrl);
@@ -74,55 +98,73 @@ public class DelaGenerationService implements GenerationProcessor {
 
             statusUpdateService.reportFinished(generationId, finalSbomUrls);
 
-        } catch (Exception e) {
-            log.error("Batch generation failed for Operation: {}", operationId, e);
-            statusUpdateService.reportFailed(generationId, "Batch processing failed: " + e.getMessage());
+        } catch (Throwable t) {
+            log.error("Batch generation failed for Operation: {}", operationId, t);
+            statusUpdateService.reportFailed(generationId, "Batch processing failed: " + t.getMessage());
+            throw new RuntimeException("Failing Kafka message due to internal processing error", t);
         }
     }
 
-    /**
-     * Transforms a list of PNC artifacts into a physical CycloneDX JSON string.
-     * This implementation tries to follow the legacy SBOMer logic:
-     * - Uses UUID v3 (Name-based) for deterministic Serial Numbers.
-     * - Identifies SBOMer name and version as the generating tool in Metadata.
-     * - Builds a hierarchical tree based on archive paths.
-     * - Sets the root distribution as the primary component.
-     */
-    private String generateCycloneDxJson(String zipUrl, List<AnalyzedArtifact> artifacts) throws GeneratorException {
+    private String generateCycloneDxJson(String deliverableUrl, List<AnalyzedArtifact> artifacts, DeliverableAnalyzerOperation operation) throws GeneratorException {
         Bom bom = new Bom();
 
-        // 1. Create the Root Component (The Deliverable Distribution)
-        String fileName = extractFilename(zipUrl);
+        String fileName = extractFilename(deliverableUrl);
         String rootPurl = "pkg:generic/" + fileName;
 
+        // Setup Root Component
         Component rootComponent = new Component();
         rootComponent.setName(fileName);
         rootComponent.setPurl(rootPurl);
         rootComponent.setBomRef(rootPurl);
         rootComponent.setType(Component.Type.FILE);
 
-        // 2. Metadata: Identify SBOMer as the Tool
+        // Extract distribution SHA-256 for root component metadata
+        Optional<String> distSha256 = extractDistributionSha256(artifacts);
+        if (distSha256.isPresent()) {
+            rootComponent.setVersion("sha256:" + distSha256.get());
+        } else if (operation != null && operation.getProductMilestone() != null) {
+            // Legacy Parity: Fallback to milestone version if no checksum is available
+            rootComponent.setVersion(operation.getProductMilestone().getVersion());
+        }
+
+        // Add Red Hat Deliverable Properties
+        List<Property> rootProperties = new ArrayList<>();
+        rootProperties.add(createProperty("redhat:deliverable-url", deliverableUrl));
+        distSha256.ifPresent(sha -> rootProperties.add(createProperty("redhat:deliverable-checksum", "sha256:" + sha)));
+        rootComponent.setProperties(rootProperties);
+
+        // Add the PNC Operation Traceability
+        if (operation != null) {
+            org.cyclonedx.model.ExternalReference opRef = new org.cyclonedx.model.ExternalReference();
+            opRef.setType(org.cyclonedx.model.ExternalReference.Type.BUILD_SYSTEM);
+            opRef.setUrl(pncApiUrl + "/pnc-rest/v2/operations/deliverable-analyzer/" + operation.getId());
+            opRef.setComment("pnc-operation-id");
+
+            List<org.cyclonedx.model.ExternalReference> refs = new ArrayList<>();
+            refs.add(opRef);
+            rootComponent.setExternalReferences(refs);
+        }
+
+        // Metadata (Tool & Supplier)
         Metadata metadata = new Metadata();
         metadata.setTimestamp(new java.util.Date());
         metadata.setComponent(rootComponent);
 
-        // Set Tool Information (Loyal to legacy tool identification)
         org.cyclonedx.model.metadata.ToolInformation toolInfo = new org.cyclonedx.model.metadata.ToolInformation();
         org.cyclonedx.model.Service toolService = new org.cyclonedx.model.Service();
-        toolService.setName("SBOMer");
-        toolService.setVersion("2.0.0"); // Update based on your actual project version
+        toolService.setName(toolName);
+        toolService.setVersion(toolVersion);
         toolInfo.setServices(List.of(toolService));
         metadata.setToolChoice(toolInfo);
 
-        // Set Supplier (Red Hat)
         org.cyclonedx.model.OrganizationalEntity supplier = new org.cyclonedx.model.OrganizationalEntity();
-        supplier.setName("Red Hat");
-        supplier.setUrls(List.of("https://www.redhat.com"));
+        supplier.setName(supplierName);
+        supplier.setUrls(supplierUrls);
         metadata.setSupplier(supplier);
 
         bom.setMetadata(metadata);
 
-        // 3. Setup Tracking Maps for Hierarchy
+        // Dependency Tracking & Component Mapping
         Dependency rootDependency = new Dependency(rootPurl);
         bom.addDependency(rootDependency);
 
@@ -133,13 +175,20 @@ public class DelaGenerationService implements GenerationProcessor {
         purlToComponents.put(rootPurl, rootComponent);
         purlToDependencies.put(rootPurl, rootDependency);
 
-        // 4. Map Artifacts to Components
         for (AnalyzedArtifact artifact : artifacts) {
             String purl = artifact.getArtifact().getPurl();
 
+            // Handle missing PURLs gracefully
+            if (purl == null || purl.isBlank()) {
+                String safeName = artifact.getArtifact().getFilename() != null
+                        ? artifact.getArtifact().getFilename()
+                        : "unknown-artifact-" + artifact.getArtifact().getId();
+                purl = "pkg:generic/" + safeName;
+            }
+
             if (!purlToComponents.containsKey(purl)) {
-                // mapArtifactToComponent handles the GAV/NPM coords and Licenses
-                Component component = CycloneDxMapper.mapArtifactToComponent(artifact);
+                // Pass pncApiUrl and the resolved purl into the mapper
+                Component component = CycloneDxMapper.mapArtifactToComponent(artifact, pncApiUrl, purl);
                 bom.addComponent(component);
                 purlToComponents.put(purl, component);
 
@@ -148,14 +197,13 @@ public class DelaGenerationService implements GenerationProcessor {
                 purlToDependencies.put(purl, dependency);
             }
 
-            // Map internal paths for tree reconstruction
             Dependency depNode = purlToDependencies.get(purl);
             if (artifact.getArchiveFilenames() != null) {
                 artifact.getArchiveFilenames().forEach(path -> pathToDependencies.put(path, depNode));
             }
         }
 
-        // 5. Build Hierarchy (Nesting JARs/WARs)
+        // Build Hierarchy Tree
         for (Map.Entry<String, Dependency> entry : pathToDependencies.entrySet()) {
             String path = entry.getKey();
             Dependency current = entry.getValue();
@@ -164,32 +212,32 @@ public class DelaGenerationService implements GenerationProcessor {
             parentNode.orElse(rootDependency).addDependency(current);
         }
 
-        // 6. Final Structural Cleanup
+        // Apply NPM Dependencies Workaround
+        npmWorkaroundService.applyWorkaround(bom, artifacts, pncApiUrl);
+
+        // Final Structural Cleanup
         if (bom.getComponents() == null) bom.setComponents(new ArrayList<>());
         if (bom.getComponents().isEmpty() || !rootComponent.getBomRef().equals(bom.getComponents().get(0).getBomRef())) {
             bom.getComponents().add(0, rootComponent);
         }
 
-        // Prevent self-referencing dependencies
         if (bom.getDependencies() != null) {
             bom.getDependencies().forEach(d -> {
                 if (d.getDependencies() != null) {
+                    // Prevent infinite loops / self-references
                     d.getDependencies().removeIf(child -> child.getRef().equals(d.getRef()));
                 }
             });
         }
 
-        // 7. Deterministic Serial Number (UUID v3)
-        // First, generate the JSON without the serial number
+        // Deterministic UUID Generation
         BomJsonGenerator generator = new BomJsonGenerator(bom, Version.VERSION_16);
         String rawJson = generator.toJsonString();
 
-        // Create a deterministic UUID based on the BOM's content
         byte[] bytes = rawJson.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String deterministicUuid = UUID.nameUUIDFromBytes(bytes).toString();
         bom.setSerialNumber("urn:uuid:" + deterministicUuid);
 
-        // Return the final JSON with the serial number now included
         return new BomJsonGenerator(bom, Version.VERSION_16).toJsonString();
     }
 
@@ -210,5 +258,19 @@ public class DelaGenerationService implements GenerationProcessor {
         } catch (Exception e) {
             return "unknown-deliverable";
         }
+    }
+
+    private Optional<String> extractDistributionSha256(List<AnalyzedArtifact> artifacts) {
+        if (artifacts == null || artifacts.isEmpty() || artifacts.get(0).getDistribution() == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(artifacts.get(0).getDistribution().getSha256());
+    }
+
+    private Property createProperty(String name, String value) {
+        Property property = new Property();
+        property.setName(name);
+        property.setValue(value);
+        return property;
     }
 }

@@ -131,8 +131,6 @@ helm upgrade --install sbomer-release "./$PLATFORM_DIR" \
     --set global.includeApiGateway=true \
     --set global.includeS3=true \
     --set global.includeOtelLgtm=true \
-    --set global.includeDependencyTrack=true \
-    --set global.includeDependencyTrackPublisher=true \
     --set global.includeMockServices=true \
     --set "wiremock.extraMappingConfigMaps[0]=dela-wiremock-mappings" \
     --set dela-generator-chart.config.pnc.apiUrl="http://sbomer-release-wiremock:8080" \

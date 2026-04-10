@@ -26,6 +26,13 @@ config:
   pnc:
     apiUrl: "http://pnc-url"
 
+  sbomMetadata:
+    toolName: "SBOMer NextGen"
+    toolVersion: "1.0.0"
+    supplierName: "Red Hat"
+    # For multiple URLs, separate with commas
+    supplierUrls: "https://redhat.com"
+
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
 # This is to override the chart name.

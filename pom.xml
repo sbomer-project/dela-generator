@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.jboss.sbomer</groupId>
     <artifactId>dela-generator</artifactId>
@@ -19,9 +19,11 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.version>3.28.2</quarkus.platform.version>
         <logback.version>1.5.6</logback.version>
+
         <version.pnc>3.2.9</version.pnc>
         <version.pnc-api>3.2.4</version.pnc-api>
         <version.cyclonedx>9.1.0-patch</version.cyclonedx>
+
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <maven-enforcer-plugin.version>3.6.2</maven-enforcer-plugin.version>
@@ -53,10 +55,6 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-validator</artifactId>
         </dependency>
         <dependency>
@@ -76,12 +74,38 @@
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
         <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>url-connection-client</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-smallrye-health</artifactId>
+            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-client-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-multipart</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
         </dependency>
         <dependency>
             <groupId>io.cloudevents</groupId>
@@ -95,17 +119,63 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-jackson</artifactId>
+            <groupId>org.jboss.sbomer.events</groupId>
+            <artifactId>sbomer-contracts</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.pnc</groupId>
+            <artifactId>dto</artifactId>
+            <version>${version.pnc}</version>
+            <classifier>patch-builders</classifier>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jboss.pnc</groupId>
+                    <artifactId>pnc-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-client-jackson</artifactId>
+            <groupId>org.jboss.pnc</groupId>
+            <artifactId>pnc-api</artifactId>
+            <version>${version.pnc-api}</version>
+            <classifier>jakarta</classifier>
         </dependency>
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+            <groupId>org.jboss.pnc.build.finder</groupId>
+            <artifactId>core</artifactId>
+            <version>2.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jboss.pnc</groupId>
+                    <artifactId>dto</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.jboss.pnc</groupId>
+            <artifactId>rest-client-jakarta</artifactId>
+            <version>${version.pnc}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jboss.pnc</groupId>
+                    <artifactId>dto</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.package-url</groupId>
+            <artifactId>packageurl-java</artifactId>
+            <version>1.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.cyclonedx</groupId>
+            <artifactId>cyclonedx-core-java</artifactId>
+            <version>${version.cyclonedx}</version>
+        </dependency>
+
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit5</artifactId>
@@ -139,48 +209,6 @@
             <version>${logback.version}</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.jboss.pnc</groupId>
-            <artifactId>dto</artifactId>
-            <version>${version.pnc}</version>
-            <classifier>patch-builders</classifier>
-        </dependency>
-        <dependency>
-            <groupId>org.jboss.pnc</groupId>
-            <artifactId>pnc-api</artifactId>
-            <version>${version.pnc-api}</version>
-            <classifier>jakarta</classifier>
-        </dependency>
-        <dependency>
-            <groupId>org.jboss.pnc.build.finder</groupId>
-            <artifactId>core</artifactId>
-            <version>2.0.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jboss.pnc</groupId>
-            <artifactId>rest-client-jakarta</artifactId>
-            <version>${version.pnc}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.package-url</groupId>
-            <artifactId>packageurl-java</artifactId>
-            <version>1.5.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jboss.sbomer.events</groupId>
-            <artifactId>sbomer-contracts</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.cyclonedx</groupId>
-            <artifactId>cyclonedx-core-java</artifactId>
-            <version>${version.cyclonedx}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-smallrye-openapi</artifactId>
-        </dependency>
-
     </dependencies>
 
     <repositories>
@@ -259,7 +287,7 @@
                 <artifactId>impsort-maven-plugin</artifactId>
                 <version>1.12.0</version>
                 <configuration>
-                    <groups>javax.,java.,org.,com.</groups>
+                    <groups>jakarta.,javax.,java.,org.,com.</groups>
                     <lineEnding>LF</lineEnding>
                     <staticGroups>java,*</staticGroups>
                     <removeUnused>true</removeUnused>

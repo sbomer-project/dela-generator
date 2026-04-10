@@ -57,6 +57,14 @@ spec:
               value: {{ .Values.config.otel.protocol }}
             - name: QUARKUS_OTEL_RESOURCE_ATTRIBUTES
               value: "service.name=sbomer-dela-generator"
+            - name: SBOMER_GENERATOR_TOOL_NAME
+              value: {{ .Values.config.sbomMetadata.toolName | quote }}
+            - name: SBOMER_GENERATOR_TOOL_VERSION
+              value: {{ .Values.config.sbomMetadata.toolVersion | quote }}
+            - name: SBOMER_GENERATOR_SUPPLIER_NAME
+              value: {{ .Values.config.sbomMetadata.supplierName | quote }}
+            - name: SBOMER_GENERATOR_SUPPLIER_URLS
+              value: {{ .Values.config.sbomMetadata.supplierUrls | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
