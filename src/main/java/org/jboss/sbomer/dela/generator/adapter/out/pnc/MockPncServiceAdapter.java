@@ -43,7 +43,7 @@ public class MockPncServiceAdapter implements PNCService {
     private static final String MOCK_NPM_BUILD_ID = "BUILD-9902";
 
     @Override
-    @WithSpan("PNC.getOperation (Mock)")
+    @WithSpan
     public DeliverableAnalyzerOperation getOperation(@SpanAttribute("pnc.operationId") String operationId) {
         log.warn("🛡️ MOCK PNC: Providing Operation metadata");
 
@@ -60,7 +60,7 @@ public class MockPncServiceAdapter implements PNCService {
     }
 
     @Override
-    @WithSpan("PNC.getAnalyzedArtifacts (Mock)")
+    @WithSpan
     public List<AnalyzedArtifact> getAnalyzedArtifacts(@SpanAttribute("pnc.operationId") String operationId) {
         log.warn("🛡️ MOCK PNC: Providing complex fake AnalyzedArtifacts");
 
@@ -204,7 +204,7 @@ public class MockPncServiceAdapter implements PNCService {
     }
 
     @Override
-    @WithSpan("PNC.getNPMDependencies (Mock)")
+    @WithSpan
     public List<Artifact> getNPMDependencies(@SpanAttribute("pnc.buildId") String buildId) {
         if (MOCK_MAVEN_BUILD_ID.equals(buildId)) {
             log.warn("🛡️ MOCK PNC: Injecting hidden NPM dependency for Maven Build {}", buildId);

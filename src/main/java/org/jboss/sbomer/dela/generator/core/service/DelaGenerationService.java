@@ -31,6 +31,8 @@ import org.jboss.sbomer.dela.generator.core.port.spi.StatusUpdateService;
 import org.jboss.sbomer.dela.generator.core.port.spi.StorageService;
 import org.jboss.sbomer.events.orchestration.GenerationCreated;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,10 +63,15 @@ public class DelaGenerationService implements GenerationProcessor {
     String pncApiUrl;
 
     @Override
+    @WithSpan
     @Bulkhead(value = 5) // MAXIMUM 5 concurrent generation tasks allowed
     public void processGeneration(GenerationCreated event) {
         String generationId = event.getData().getGenerationRequest().getGenerationId();
         String operationId = event.getData().getGenerationRequest().getTarget().getIdentifier();
+
+        Span span = Span.current();
+        span.setAttribute("sbom.generationId", generationId);
+        span.setAttribute("pnc.operationId", operationId);
 
         log.info("Starting batch DELA generation for Operation: {}", operationId);
 

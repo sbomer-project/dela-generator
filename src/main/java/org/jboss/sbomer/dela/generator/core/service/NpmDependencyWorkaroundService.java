@@ -14,6 +14,7 @@ import org.jboss.pnc.dto.response.AnalyzedArtifact;
 import org.jboss.pnc.enums.BuildType;
 import org.jboss.sbomer.dela.generator.core.port.spi.PNCService;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +29,7 @@ public class NpmDependencyWorkaroundService {
      * Finds components built in PNC (non-NPM builds) and attaches their build-time
      * NPM dependencies into the BOM if they aren't already present.
      */
+    @WithSpan
     public void applyWorkaround(Bom bom, List<AnalyzedArtifact> originalArtifacts, String pncApiUrl) {
         if (bom.getComponents() == null) return;
 
