@@ -30,7 +30,8 @@ import io.quarkus.arc.profile.IfBuildProfile;
 import lombok.extern.slf4j.Slf4j;
 
 @ApplicationScoped
-@IfBuildProfile("mock")
+// Temporarily force always the mock adapter to run
+@IfBuildProfile("prod")
 @Alternative
 @Priority(1)
 @Slf4j
