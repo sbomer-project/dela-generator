@@ -12,7 +12,6 @@ import org.jboss.sbomer.dela.generator.core.utility.FailureUtility;
 import org.jboss.sbomer.events.orchestration.GenerationCreated;
 
 import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.StatusCode;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,9 +32,6 @@ public class KafkaRequestConsumer {
             if (isMyGenerator(event)) {
                 log.info("{} received task for generation: {}", COMPONENT_NAME,
                         event.getData().getGenerationRequest().getGenerationId());
-
-                // Capture OTel trace context from the current span (propagated via Kafka headers)
-                String traceParent = buildTraceParent(Span.current().getSpanContext());
                 
                 // Add traceParent to MDC or pass it down if needed, then call core logic
                 generationProcessor.processGeneration(event);
@@ -53,20 +49,6 @@ public class KafkaRequestConsumer {
                 failureNotifier.notify(FailureUtility.buildFailureSpecFromException(e), null, null);
             }
         }
-    }
-
-    /**
-     * Builds W3C traceparent header from current OTel SpanContext.
-     * Format: 00-<traceId>-<spanId>-<traceFlags>
-     */
-    private String buildTraceParent(SpanContext spanContext) {
-        if (spanContext == null || !spanContext.isValid()) {
-            return null;
-        }
-        return String.format("00-%s-%s-%s",
-                spanContext.getTraceId(),
-                spanContext.getSpanId(),
-                spanContext.getTraceFlags().asHex());
     }
 
     private boolean isMyGenerator(GenerationCreated event) {

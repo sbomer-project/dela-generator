@@ -63,7 +63,7 @@ public class PncServiceAdapter implements PNCService {
     }
 
     @Override
-    @WithSpan("PNC.getOperation")
+    @WithSpan
     @Retry(maxRetries = 3, delay = 2, delayUnit = ChronoUnit.SECONDS)
     @CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 30, delayUnit = ChronoUnit.SECONDS)
     public DeliverableAnalyzerOperation getOperation(@SpanAttribute("pnc.operationId") String operationId) {
@@ -79,7 +79,7 @@ public class PncServiceAdapter implements PNCService {
     }
 
     @Override
-    @WithSpan("PNC.getAnalyzedArtifacts")
+    @WithSpan
     @Retry(maxRetries = 3, delay = 2, delayUnit = ChronoUnit.SECONDS)
     @CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 30, delayUnit = ChronoUnit.SECONDS)
     public List<AnalyzedArtifact> getAnalyzedArtifacts(@SpanAttribute("pnc.operationId") String operationId) {
@@ -95,7 +95,7 @@ public class PncServiceAdapter implements PNCService {
     }
 
     @Override
-    @WithSpan("PNC.getNPMDependencies")
+    @WithSpan
     @Retry(maxRetries = 3, delay = 2, delayUnit = ChronoUnit.SECONDS)
     @CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 30, delayUnit = ChronoUnit.SECONDS)
     public List<Artifact> getNPMDependencies(@SpanAttribute("pnc.buildId") String buildId) {
