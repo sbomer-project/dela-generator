@@ -30,7 +30,7 @@ import io.quarkus.arc.profile.IfBuildProfile;
 import lombok.extern.slf4j.Slf4j;
 
 @ApplicationScoped
-// To go back to using mock in prod, set to prod
+// To go back to using the pnc mock adapter in prod, set to this to "prod"
 @IfBuildProfile("mock")
 @Alternative
 @Priority(1)
