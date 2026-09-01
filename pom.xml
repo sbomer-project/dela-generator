@@ -21,7 +21,7 @@
         <logback.version>1.5.6</logback.version>
 
         <version.pnc>3.2.9</version.pnc>
-        <version.pnc-api>3.2.4</version.pnc-api>
+        <version.pnc-api>3.5.2</version.pnc-api>
         <version.cyclonedx>9.1.0-patch</version.cyclonedx>
         <version.quarkus-jgit>3.6.0</version.quarkus-jgit>
 
